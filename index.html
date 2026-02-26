@@ -67,4 +67,223 @@
 
     <div id="pageAccount" class="page active">
         <div class="live-clock">
-            <span class="date
+            <span class="date-part" id="liveDate">----/--/--</span>
+            <span class="time-part" id="liveTime">00:00:00</span>
+        </div>
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <button onclick="changeMonth(-1)" style="width:auto; padding:5px 15px;">⬅️</button>
+                <span id="monthDisplay" style="font-weight:bold;"></span>
+                <button onclick="changeMonth(1)" style="width:auto; padding:5px 15px;">➡️</button>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-item stat-in">本月收入<br><b id="monIn">$ 0</b></div>
+                <div class="stat-item stat-out">本月支出<br><b id="monOut">$ 0</b></div>
+            </div>
+            <div class="input-group">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                    <input type="number" id="accAmt" placeholder="請輸入金額" inputmode="numeric">
+                    <select id="accType">
+                        <option value="income">➕ 收入</option>
+                        <option value="expense">➖ 支出</option>
+                    </select>
+                </div>
+                <input type="text" id="accNote" placeholder="備註 (非必填)">
+                <button class="btn-main" onclick="addRecord()">存入紀錄</button>
+            </div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead><tr><th>時間</th><th>備註</th><th>金額</th></tr></thead>
+                    <tbody id="accTable"></tbody>
+                </table>
+            </div>
+        </div>
+        <button style="color:red; background:none; border:none; width:100%; font-size:0.8em;" onclick="resetPart('acc')">🗑️ 重設柏村收支紀錄</button>
+    </div>
+
+    <div id="page365" class="page">
+        <div class="card">
+            <h2 style="font-size:1em; margin-bottom:12px;">📅 柏村365日存錢格</h2>
+            <div class="grid-container" id="grid365"></div>
+        </div>
+        <div class="card">
+            <h2 style="font-size:1em;">📜 柏村存款明細</h2>
+            <div class="history-list" id="piggyHistory"></div>
+            <div style="text-align: right; margin-top: 15px; font-weight: bold; color: var(--piggy); font-size: 1.3em;">
+                累計：<span id="piggyTotal">$ 0</span>
+            </div>
+        </div>
+        <button style="color:red; background:none; border:none; width:100%; font-size:0.8em;" onclick="resetPart('365')">🗑️ 清空存錢進度</button>
+    </div>
+
+    <div id="pageWish" class="page">
+        <div class="card">
+            <h2 style="font-size:1em;">✨ 我的願望</h2>
+            <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+                <input type="text" id="wishInput" style="flex:1" placeholder="存到錢後想買什麼？">
+                <button class="btn-main" style="background:var(--wish); width:80px;" onclick="addWish()">增加</button>
+            </div>
+            <div id="wishList"></div>
+        </div>
+        <button style="color:red; background:none; border:none; width:100%; font-size:0.8em;" onclick="resetPart('wish')">🗑️ 清空願望清單</button>
+    </div>
+</div>
+
+<nav class="navbar">
+    <div class="nav-item active" onclick="switchPage('Account', this)">
+        <span class="nav-icon">📒</span><span>柏村收支</span>
+    </div>
+    <div class="nav-item" onclick="switchPage('365', this)">
+        <span class="nav-icon">🐷</span><span>365計畫</span>
+    </div>
+    <div class="nav-item" onclick="switchPage('Wish', this)">
+        <span class="nav-icon">🎁</span><span>願望</span>
+    </div>
+</nav>
+
+<script>
+    let viewDate = new Date();
+    let records = JSON.parse(localStorage.getItem('bo_records_v1')) || [];
+    let savedData = JSON.parse(localStorage.getItem('bo_365_v1')) || [];
+    let wishes = JSON.parse(localStorage.getItem('bo_wishes_v1')) || [];
+
+    function getTaipeiTime() {
+        const now = new Date();
+        const options = { 
+            timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
+        };
+        const formatter = new Intl.DateTimeFormat('zh-TW', options);
+        const parts = formatter.formatToParts(now);
+        const map = {}; parts.forEach(p => map[p.type] = p.value);
+        return {
+            full: `${map.year}/${map.month}/${map.day} ${map.hour}:${map.minute}`,
+            date: `${map.year}年${map.month}月${map.day}日`,
+            time: `${map.hour}:${map.minute}:${map.second}`,
+            timestamp: now.getTime()
+        };
+    }
+
+    function updateLiveClock() {
+        const t = getTaipeiTime();
+        document.getElementById('liveDate').textContent = t.date;
+        document.getElementById('liveTime').textContent = t.time;
+    }
+    setInterval(updateLiveClock, 1000);
+
+    function switchPage(pageId, navEl) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById('page' + pageId).classList.add('active');
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        navEl.classList.add('active');
+        const titles = { 'Account': '柏村收支紀錄', '365': '柏村365日存錢計畫', 'Wish': '願望清單' };
+        document.getElementById('pageTitle').innerText = titles[pageId];
+        window.scrollTo(0,0);
+    }
+
+    function updateUI() {
+        const year = viewDate.getFullYear();
+        const month = viewDate.getMonth();
+        document.getElementById('monthDisplay').textContent = `${year}年${month + 1}月`;
+
+        const monthRecords = records.filter(r => {
+            const d = new Date(r.timestamp);
+            return d.getFullYear() === year && d.getMonth() === month;
+        });
+        let ti = 0, to = 0, html = '';
+        monthRecords.forEach(r => {
+            if (r.type === 'income') ti += r.amount; else to += r.amount;
+            html += `<tr><td><span class="time-label">${r.time.split(' ')[0]}</span><br>${r.time.split(' ')[1]}</td><td>${r.note}</td><td style="color:${r.type==='income'?'#4CAF50':'#f44336'}">${r.type==='income'?'+':'-'}${r.amount}</td></tr>`;
+        });
+        document.getElementById('monIn').textContent = `$${ti.toLocaleString()}`;
+        document.getElementById('monOut').textContent = `$${to.toLocaleString()}`;
+        document.getElementById('accTable').innerHTML = html;
+
+        renderGrid();
+        renderHistory();
+
+        document.getElementById('wishList').innerHTML = wishes.map((w, i) => `
+            <div style="display:flex; justify-content:space-between; padding:12px; border-bottom:1px solid #eee; align-items:center;">
+                <span>🌟 ${w}</span><button onclick="delWish(${i})" style="color:#999; border:none; background:none; width:auto;">移除</button>
+            </div>
+        `).join('');
+
+        localStorage.setItem('bo_records_v1', JSON.stringify(records));
+        localStorage.setItem('bo_365_v1', JSON.stringify(savedData));
+        localStorage.setItem('bo_wishes_v1', JSON.stringify(wishes));
+    }
+
+    function addRecord() {
+        const amtInput = document.getElementById('accAmt');
+        const noteInput = document.getElementById('accNote');
+        const amt = parseInt(amtInput.value);
+        // 優化：若備註為空，自動填入「未備註」
+        const note = noteInput.value.trim() === "" ? "未備註" : noteInput.value;
+        const type = document.getElementById('accType').value;
+
+        if (isNaN(amt) || amt <= 0) {
+            alert("請輸入正確的金額！");
+            return;
+        }
+
+        const timeData = getTaipeiTime();
+        records.push({ timestamp: timeData.timestamp, time: timeData.full, amount: amt, note: note, type: type });
+        amtInput.value = '';
+        noteInput.value = '';
+        updateUI();
+    }
+
+    function renderGrid() {
+        const container = document.getElementById('grid365');
+        if (!container) return;
+        container.innerHTML = '';
+        const savedA = savedData.map(d => d.amount);
+        for (let i = 1; i <= 365; i++) {
+            const box = document.createElement('div');
+            box.className = `day-box ${savedA.includes(i) ? 'saved' : ''}`;
+            box.textContent = i;
+            box.onclick = () => {
+                if (savedA.includes(i)) {
+                    if(confirm(`要取消這筆 $${i} 的存款嗎？`)) savedData = savedData.filter(d => d.amount !== i);
+                } else {
+                    const timeData = getTaipeiTime();
+                    savedData.push({ amount: i, time: timeData.full });
+                }
+                updateUI();
+            };
+            container.appendChild(box);
+        }
+    }
+
+    function renderHistory() {
+        const hist = document.getElementById('piggyHistory');
+        if (!hist) return;
+        const total = savedData.reduce((s, x) => s + x.amount, 0);
+        document.getElementById('piggyTotal').textContent = `$${total.toLocaleString()}`;
+        hist.innerHTML = [...savedData].reverse().map(d => `
+            <div class="history-item"><span><span class="time-label">${d.time}</span><br><b>存入 $${d.amount}</b></span></div>
+        `).join('');
+    }
+
+    function addWish() {
+        const w = document.getElementById('wishInput').value;
+        if(w) { wishes.push(w); document.getElementById('wishInput').value = ''; updateUI(); }
+    }
+    function delWish(i) { wishes.splice(i,1); updateUI(); }
+    function changeMonth(o) { viewDate.setMonth(viewDate.getMonth() + o); updateUI(); }
+
+    function resetPart(type) {
+        if (confirm("資料刪除後無法找回，確定要重設嗎？")) {
+            if (type === 'acc') records = [];
+            else if (type === '365') savedData = [];
+            else if (type === 'wish') wishes = [];
+            updateUI();
+        }
+    }
+
+    updateLiveClock();
+    updateUI();
+</script>
+</body>
+</html>
