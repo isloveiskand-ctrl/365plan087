@@ -143,6 +143,60 @@
 </nav>
 
 <script>
+    // 替換成你部署後的 GAS 網址
+const GAS_URL = "https://script.google.com/macros/s/AKfycbytl5O-7TQ0MF7CEjM9vaW0s-nwHF46R197ZVvS9xs6mAf3Xi16psf0Zj41p31As5Tl/exec";
+
+// 1. 頁面載入時，從雲端抓取資料
+async function loadCloudData() {
+    try {
+        const response = await fetch(GAS_URL);
+        const cloudData = await response.json();
+        
+        // 轉換格式 (試算表抓回的是陣列)
+        records = cloudData.records.slice(1).map(r => ({
+            timestamp: r[0], time: r[1], amount: r[2], note: r[3], type: r[4]
+        }));
+        savedData = cloudData.savings.slice(1).map(s => ({
+            amount: s[0], time: s[1]
+        }));
+        wishes = cloudData.wishes.slice(1).map(w => w[0]);
+        
+        updateUI();
+    } catch (e) {
+        console.log("雲端讀取失敗，改用本地紀錄", e);
+    }
+}
+
+// 2. 新增紀錄時，傳送到雲端
+async function addRecord() {
+    const amt = parseInt(document.getElementById('accAmt').value);
+    const note = document.getElementById('accNote').value || "未備註";
+    const type = document.getElementById('accType').value;
+    if (isNaN(amt)) return;
+
+    const timeData = getTaipeiTime();
+    const newData = { timestamp: timeData.timestamp, time: timeData.full, amount: amt, note: note, type: type };
+
+    // 先顯示在螢幕上（提升體驗）
+    records.push(newData);
+    updateUI();
+
+    // 非同步傳送到雲端
+    fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify({ method: 'addRecord', ...newData })
+    });
+}
+
+// 3. 存錢格點擊同步
+async function toggleSaving(i) {
+    // ... 原本的 toggle 邏輯 ...
+    // 最後同步整份 savedData 到雲端
+    fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify({ method: 'syncSavings', data: savedData })
+    });
+}
     let viewDate = new Date();
     let records = JSON.parse(localStorage.getItem('bo_records_v1')) || [];
     let savedData = JSON.parse(localStorage.getItem('bo_365_v1')) || [];
@@ -287,4 +341,5 @@
 </script>
 </body>
 </html>
+
 
